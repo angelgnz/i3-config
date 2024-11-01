@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Instalar programas
-yay -S --needed <programas
+yay -S --needed $(<programas)
 
 # Archivos a copiar
 archivos=("i3_overgrive" "i3_nzxt")
@@ -96,3 +96,19 @@ if [ -f "$autostart_file" ]; then
 else
     echo "El archivo $autostart_file no existe."
 fi
+
+read -p "¿Quieres reiniciar el sistema en este momento? (s/N) " respuesta
+if [[ -z "$respuesta" ]] ; then
+    # Asuming 'n' como la respuesta por defecto si el usuario solo presiona Enter.
+    respuesta="n"
+fi
+
+case ${respuesta:0:1} in
+    s|S )
+        echo 'El sistema se está reiniciando ahora ...'
+        sudo reboot
+    ;;
+    * )
+        echo 'Reinicio cancelado.'
+    ;;
+esac
