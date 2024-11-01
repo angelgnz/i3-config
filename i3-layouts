@@ -1,0 +1,14 @@
+Dentro del archivo config de i3 al final en Autostart
+
+exec i3-layouts
+
+set $i3l spiral to workspace 1
+set $i3l spiral to workspace 2
+set $i3l spiral to workspace 3
+set $i3l spiral to workspace 4
+set $i3l spiral to workspace 5
+set $i3l spiral to workspace 6
+set $i3l spiral to workspace 7
+set $i3l spiral to workspace 8
+set $i3l spiral to workspace 9
+set $i3l spiral to workspace 0

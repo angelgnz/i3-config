@@ -1,0 +1,9 @@
+En Archcraft dentro de i3_autostart en la carpeta de scripts insertar al final 
+
+
+
+# Lauch NZXT
+"$idir"/scripts/i3_nzxt
+
+# Lauch Overgrive
+"$idir"/scripts/i3_overgrive

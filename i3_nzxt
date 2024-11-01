@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+liquidctl --match smart set sync color fixed 7400b8
+liquidctl --match kraken set sync color fixed 7400b8
+liquidctl --match kraken set pump speed  100
+liquidctl --match smart set fan1 speed 60
+liquidctl --match smart set fan2 speed 60
+liquidctl --match smart set fan3 speed 60
