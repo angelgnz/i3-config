@@ -3,6 +3,9 @@
 # Instalar programas
 yay -S --needed $(<programas)
 
+#Natural Scroll
+xinput set-prop "MSFT0001:00 06CB:CE44 Touchpad" "libinput Natural Scrolling Enabled" 1
+
 # Archivos a copiar
 archivos=("i3_overgrive" "i3_nzxt")
 
