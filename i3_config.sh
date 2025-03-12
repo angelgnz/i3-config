@@ -52,6 +52,37 @@ for archivo in "${archivos[@]}"; do
 done
 
 # Configuración adicional
+
+# Reemplazar corner radius
+corner_radius="corner-radius = 17;" # Reemplazar NUEVO_VALOR con el valor deseado
+
+# Archivo de configuración
+picom_conf="$HOME/.config/i3/picom.conf" # Reemplazar /ruta/al/archivo/picom.conf con la ubicación real del archivo
+
+# Verificar si el archivo existe
+if [ -f "$picom_conf" ]; then
+  # Reemplazar la línea con el nuevo valor
+  sed -i "s/^corner-radius =.*/$corner_radius/" "$picom_conf"
+  echo "Corner radius ha sido cambiada exitosamente."
+else
+  echo "El archivo $picom_conf no existe."
+fi
+
+# Reemplazar la línea con el nuevo valor deseado
+border="0"
+
+# Archivo de configuración
+theme_conf="$HOME/.config/i3/config.d/01_theme.conf" # Reemplazar /ruta/al/archivo/01_theme.conf con la ubicación real del archivo
+
+# Verificar si el archivo existe
+if [ -f "$theme_conf" ]; then
+  # Reemplazar la línea con el nuevo valor
+  sed -i "s/^set \$i3_border_size .*/$border/" "$theme_conf"
+  echo "El borde ha sido cambiada exitosamente."
+else
+  echo "El archivo $theme_conf no existe."
+fi
+
 config_file="$HOME/.config/i3/config"
 
 echo "Agregando configuración adicional al archivo $config_file..."
