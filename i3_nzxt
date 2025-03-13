@@ -6,3 +6,5 @@ liquidctl --match kraken set pump speed  100
 liquidctl --match smart set fan1 speed 60
 liquidctl --match smart set fan2 speed 60
 liquidctl --match smart set fan3 speed 60
+
+xinput set-prop "MSFT0001:00 06CB:CE44 Touchpad" "libinput Natural Scrolling Enabled" 1
