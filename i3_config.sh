@@ -1,24 +1,66 @@
 #!/bin/bash
 
-# Instalar programas
+# =============================================
+# SCRIPT DE CONFIGURACIÓN PARA Archcraft i3wm
+# Este script realiza las siguientes acciones:
+# 1. Actualiza los atajos de teclado
+# 2. Instala programas necesarios
+# 3. Configura el desplazamiento natural
+# 4. Copia archivos de configuración
+# 5. Añade configuraciones adicionales
+# =============================================
+
+# ========================
+# PARTE 1: Actualización de atajos de teclado
+# ========================
+
+# Archivo de configuración a modificar
+CONFIG_FILE="$HOME/.config/i3/config"
+
+# Archivo temporal
+TEMP_FILE=$(mktemp)
+
+echo "Actualizando atajos de teclado en el archivo de configuración..."
+
+# Procesar el archivo para:
+# 1. Comentar el atajo MOD+a focus parent
+# 2. Reemplazar ALT+F1 por MOD+a para el lanzador rofi
+sed -e 's/^bindsym $MOD+a focus parent/# &/' \
+    -e 's|^bindsym $ALT+F1[[:space:]]*exec --no-startup-id $rofi_applets/rofi_launcher|bindsym $MOD+a \t\t\texec --no-startup-id $rofi_applets/rofi_launcher|' \
+    "$CONFIG_FILE" > "$TEMP_FILE"
+
+# Reemplazar el archivo original
+mv "$TEMP_FILE" "$CONFIG_FILE"
+
+echo "✅ Atajos actualizados correctamente:"
+echo "   - Se comentó 'bindsym \$MOD+a focus parent'"
+echo "   - Se reemplazó ALT+F1 por MOD+a para el lanzador rofi"
+
+# ========================
+# PARTE 2: Instalación y configuración del sistema
+# ========================
+
+# Instalar programas desde el archivo 'programas'
+echo "Instalando programas desde la lista 'programas'..."
 yay -S --needed $(<programas)
 
-#Natural Scroll
+# Configurar desplazamiento natural en el touchpad
+echo "Configurando desplazamiento natural para el touchpad..."
 xinput set-prop "MSFT0001:00 06CB:CE44 Touchpad" "libinput Natural Scrolling Enabled" 1
 
-# Archivos a copiar
+# Archivos que se copiarán
 archivos=("i3_overgrive" "i3_nzxt")
 
-# Ruta de destino
+# Ruta donde se copiarán los archivos
 ruta_destino="$HOME/.config/i3/scripts/"
 
-# Función para copiar un archivo
+# Función para copiar archivos con verificación
 copiar_archivo() {
     archivo_origen=$1
 
-    # Comprobar si el archivo de origen existe
+    # Verificar si el archivo origen existe
     if [ ! -f "$archivo_origen" ]; then
-        echo "El archivo $archivo_origen no existe."
+        echo "⚠️  El archivo $archivo_origen no existe."
         return 1
     fi
 
@@ -27,67 +69,40 @@ copiar_archivo() {
 
     # Verificar si la copia fue exitosa
     if [ $? -eq 0 ]; then
-        echo "Archivo $archivo_origen copiado exitosamente a $ruta_destino"
+        echo "✅ Archivo $archivo_origen copiado correctamente a $ruta_destino"
         # Hacer el archivo ejecutable
         chmod +x "$ruta_destino/$(basename "$archivo_origen")"
     else
-        echo "Error al copiar el archivo $archivo_origen a $ruta_destino"
+        echo "❌ Error al copiar $archivo_origen a $ruta_destino"
         return 1
     fi
 }
 
-# Comprobar si la carpeta de destino existe
+# Verificar si existe la carpeta destino
 if [ ! -d "$ruta_destino" ]; then
-    echo "La carpeta de destino $ruta_destino no existe. Creando carpeta..."
+    echo "La carpeta $ruta_destino no existe. Creándola..."
     mkdir -p "$ruta_destino"
     if [ $? -ne 0 ]; then
-        echo "No se pudo crear la carpeta de destino $ruta_destino."
+        echo "❌ No se pudo crear la carpeta $ruta_destino"
         exit 1
     fi
 fi
 
-# Copiar los archivos
+# Copiar todos los archivos necesarios
+echo "Copiando archivos de configuración..."
 for archivo in "${archivos[@]}"; do
     copiar_archivo "$archivo"
 done
 
-# Configuración adicional
-
-# Reemplazar corner radius
-corner_radius="corner-radius = 17;" # Reemplazar NUEVO_VALOR con el valor deseado
-
-# Archivo de configuración
-picom_conf="$HOME/.config/i3/picom.conf" # Reemplazar /ruta/al/archivo/picom.conf con la ubicación real del archivo
-
-# Verificar si el archivo existe
-if [ -f "$picom_conf" ]; then
-  # Reemplazar la línea con el nuevo valor
-  sed -i "s/^corner-radius =.*/$corner_radius/" "$picom_conf"
-  echo "Corner radius ha sido cambiada exitosamente."
-else
-  echo "El archivo $picom_conf no existe."
-fi
-
-# Reemplazar la línea con el nuevo valor deseado
-border="0"
-
-# Archivo de configuración
-theme_conf="$HOME/.config/i3/config.d/01_theme.conf" # Reemplazar /ruta/al/archivo/01_theme.conf con la ubicación real del archivo
-
-# Verificar si el archivo existe
-if [ -f "$theme_conf" ]; then
-  # Reemplazar la línea con el nuevo valor
-  sed -i "s/^set \$i3_border_size .*/$border/" "$theme_conf"
-  echo "El borde ha sido cambiada exitosamente."
-else
-  echo "El archivo $theme_conf no existe."
-fi
+# ========================
+# PARTE 3: Configuración adicional para i3
+# ========================
 
 config_file="$HOME/.config/i3/config"
 
-echo "Agregando configuración adicional al archivo $config_file..."
+echo "Añadiendo configuraciones adicionales al archivo $config_file..."
 
-# Añadir configuración al final del archivo si no existe
+# Añadir configuración de i3-layouts si no existe
 if ! grep -q "exec i3-layouts" "$config_file"; then
     cat <<EOL >> "$config_file"
 
@@ -106,12 +121,12 @@ set \$i3l spiral to workspace 8
 set \$i3l spiral to workspace 9
 set \$i3l spiral to workspace 0
 EOL
-    echo "Configuración de i3-layouts agregada exitosamente."
+    echo "✅ Configuración de i3-layouts añadida correctamente"
 else
-    echo "La configuración de i3-layouts ya existe en $config_file."
+    echo "ℹ️  La configuración de i3-layouts ya existe en $config_file"
 fi
 
-# Modificar ~/.config/i3/scripts/i3_autostart
+# Modificar el archivo de autostart
 autostart_file="$HOME/.config/i3/scripts/i3_autostart"
 linea_nzxt='# Launch NZXT'
 linea_overgrive='# Launch Overgrive'
@@ -119,30 +134,39 @@ script_nzxt='"$idir"/scripts/i3_nzxt'
 script_overgrive='"$idir"/scripts/i3_overgrive'
 
 if [ -f "$autostart_file" ]; then
+    echo "Modificando el archivo de autostart..."
+    
     if ! grep -q "$linea_nzxt" "$autostart_file"; then
         sed -i "/# Start mpd/i $linea_nzxt\n$script_nzxt\n" "$autostart_file"
+        echo "✅ Se añadió la configuración para NZXT"
     fi
 
     if ! grep -q "$linea_overgrive" "$autostart_file"; then
         sed -i "/# Start mpd/i $linea_overgrive\n$script_overgrive\n" "$autostart_file"
+        echo "✅ Se añadió la configuración para Overgrive"
     fi
-    echo "Modificación del archivo i3_autostart completada."
 else
-    echo "El archivo $autostart_file no existe."
+    echo "⚠️  El archivo $autostart_file no existe"
 fi
 
-read -p "¿Quieres reiniciar el sistema en este momento? (s/N) " respuesta
-if [[ -z "$respuesta" ]] ; then
-    # Asuming 'n' como la respuesta por defecto si el usuario solo presiona Enter.
-    respuesta="n"
-fi
+# ========================
+# PARTE 4: Reinicio del sistema
+# ========================
 
+echo -e "\n¿Deseas reiniciar el sistema para aplicar los cambios?"
+read -p "(Sí/No) [Por defecto: No] " respuesta
+
+# Convertir respuesta a minúsculas y tomar primera letra
+respuesta=${respuesta,,}
 case ${respuesta:0:1} in
-    s|S )
-        echo 'El sistema se está reiniciando ahora ...'
+    s|y|j )
+        echo -e "\n🔄 El sistema se reiniciará ahora..."
         sudo reboot
     ;;
     * )
-        echo 'Reinicio cancelado.'
+        echo -e "\n❌ Reinicio cancelado."
+        echo "Recuerda que algunos cambios requieren reinicio para aplicarse."
     ;;
 esac
+
+echo -e "\n🎉 Configuración completada con éxito!"
