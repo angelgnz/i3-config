@@ -15,7 +15,7 @@
 # ========================
 
 # Archivo de configuración a modificar
-CONFIG_FILE="$HOME/.config/i3/config"
+CONFIG_FILE="$HOME/.config/i3/config.d/02_keybindings.conf"
 
 # Archivo temporal
 TEMP_FILE=$(mktemp)
@@ -37,7 +37,43 @@ echo "   - Se comentó 'bindsym \$MOD+a focus parent'"
 echo "   - Se reemplazó ALT+F1 por MOD+a para el lanzador rofi"
 
 # ========================
-# PARTE 2: Instalación y configuración del sistema
+# PARTE 2: Configuración de Picom (corner-radius)
+# ========================
+
+PICOM_FILE="$HOME/.config/i3/picom.conf"
+
+echo "Configurando corner-radius en picom.conf..."
+
+# Cambiar corner-radius de 0 a 12 en la sección delimitada por #-cr-start y #-cr-end
+sed -i '/#-cr-start/,/#-cr-end/s/corner-radius = 0;/corner-radius = 12;/' "$PICOM_FILE"
+
+# Verificar que el cambio se realizó correctamente
+if grep -A 1 "#-cr-start" "$PICOM_FILE" | grep -q "corner-radius = 12;"; then
+    echo "✅ corner-radius configurado a 12 correctamente"
+else
+    echo "⚠️  No se pudo verificar el cambio de corner-radius"
+fi
+
+# ========================
+# PARTE 3: Configuración de i3 border size
+# ========================
+
+THEME_FILE="$HOME/.config/i3/config.d/01_theme.conf"
+
+echo "Configurando i3_border_size en 01_theme.conf..."
+
+# Cambiar i3_border_size a 0
+sed -i 's/^set \$i3_border_size [0-9]\+$/set $i3_border_size 0/' "$THEME_FILE"
+
+# Verificar que el cambio se realizó correctamente
+if grep -q "^set \$i3_border_size 0$" "$THEME_FILE"; then
+    echo "✅ i3_border_size configurado a 0 correctamente"
+else
+    echo "⚠️  No se pudo verificar el cambio de i3_border_size"
+fi
+
+# ========================
+# PARTE 4: Instalación y configuración del sistema
 # ========================
 
 # Instalar programas desde el archivo 'programas'
@@ -95,7 +131,7 @@ for archivo in "${archivos[@]}"; do
 done
 
 # ========================
-# PARTE 3: Configuración adicional para i3
+# PARTE 5: Configuración adicional para i3
 # ========================
 
 config_file="$HOME/.config/i3/config"
@@ -150,7 +186,7 @@ else
 fi
 
 # ========================
-# PARTE 4: Reinicio del sistema
+# PARTE 6: Reinicio del sistema
 # ========================
 
 echo -e "\n¿Deseas reiniciar el sistema para aplicar los cambios?"
