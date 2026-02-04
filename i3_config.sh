@@ -11,6 +11,36 @@
 # =============================================
 
 # ========================
+# PROCESAMIENTO DE ARGUMENTOS
+# ========================
+
+SKIP_INSTALL=false
+
+# Procesar argumentos de línea de comandos
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -s|--skip-install)
+            SKIP_INSTALL=true
+            shift
+            ;;
+        -h|--help)
+            echo "Uso: $0 [OPCIONES]"
+            echo ""
+            echo "Opciones:"
+            echo "  -s, --skip-install    Omitir la instalación de programas"
+            echo "  -h, --help            Mostrar esta ayuda"
+            echo ""
+            exit 0
+            ;;
+        *)
+            echo "Opción desconocida: $1"
+            echo "Usa -h o --help para ver las opciones disponibles"
+            exit 1
+            ;;
+    esac
+done
+
+# ========================
 # PARTE 1: Actualización de atajos de teclado
 # ========================
 
@@ -77,8 +107,12 @@ fi
 # ========================
 
 # Instalar programas desde el archivo 'programas'
-echo "Instalando programas desde la lista 'programas'..."
-yay -S --needed $(<programas)
+if [ "$SKIP_INSTALL" = true ]; then
+    echo "⏭️  Omitiendo instalación de programas (--skip-install activado)"
+else
+    echo "Instalando programas desde la lista 'programas'..."
+    yay -S --needed $(<programas)
+fi
 
 # Configurar desplazamiento natural en el touchpad
 echo "Configurando desplazamiento natural para el touchpad..."
@@ -186,7 +220,104 @@ else
 fi
 
 # ========================
-# PARTE 6: Reinicio del sistema
+# PARTE 6: Configuración de wallpaper y multimonitor
+# ========================
+
+echo "Configurando wallpaper..."
+
+# Determinar qué carpeta de wallpapers existe
+if [ -d "$HOME/Images/wallpapers" ]; then
+    WALLPAPER_DIR="$HOME/Images/wallpapers"
+    WALLPAPER_PATH="~/Images/wallpapers/edger_lucy_neon-16-9.jpg"
+elif [ -d "$HOME/Imágenes/wallpapers" ]; then
+    WALLPAPER_DIR="$HOME/Imágenes/wallpapers"
+    WALLPAPER_PATH="~/Imágenes/wallpapers/edger_lucy_neon-16-9.jpg"
+else
+    # Si ninguna existe, crear Images/wallpapers
+    WALLPAPER_DIR="$HOME/Images/wallpapers"
+    WALLPAPER_PATH="~/Images/wallpapers/edger_lucy_neon-16-9.jpg"
+    echo "Creando directorio $WALLPAPER_DIR..."
+    mkdir -p "$WALLPAPER_DIR"
+fi
+
+# Verificar si la imagen existe, si no, copiarla desde el repositorio
+WALLPAPER_FILE="$WALLPAPER_DIR/edger_lucy_neon-16-9.jpg"
+if [ ! -f "$WALLPAPER_FILE" ]; then
+    echo "Copiando imagen de wallpaper..."
+    if [ -f "edger_lucy_neon-16-9.jpg" ]; then
+        cp "edger_lucy_neon-16-9.jpg" "$WALLPAPER_FILE"
+        echo "✅ Imagen de wallpaper copiada correctamente"
+    else
+        echo "⚠️  No se encontró la imagen edger_lucy_neon-16-9.jpg en el repositorio"
+    fi
+else
+    echo "ℹ️  La imagen de wallpaper ya existe en $WALLPAPER_FILE"
+fi
+
+# Preguntar sobre configuración multimonitor
+echo -e "\n¿Deseas configurar multimonitor (dos pantallas)?"
+read -p "(Sí/No) [Por defecto: No] " respuesta_monitor
+
+respuesta_monitor=${respuesta_monitor,,}
+MULTIMONITOR=false
+
+case ${respuesta_monitor:0:1} in
+    s|y|j )
+        MULTIMONITOR=true
+        echo "Configurando multimonitor..."
+        
+        # Crear directorio .screenlayout si no existe
+        SCREENLAYOUT_DIR="$HOME/.screenlayout"
+        if [ ! -d "$SCREENLAYOUT_DIR" ]; then
+            mkdir -p "$SCREENLAYOUT_DIR"
+        fi
+        
+        # Crear archivo de configuración de monitores
+        LAYOUT_FILE="$SCREENLAYOUT_DIR/my-layout.sh"
+        cat > "$LAYOUT_FILE" << 'EOF'
+#!/bin/bash
+xrandr --output HDMI-0 --mode 1920x1080 --pos 0x0 --rotate normal \
+       --output DP-0 --primary --mode 2560x1440 --pos 1920x0 --rotate normal
+
+echo "Configuración aplicada:"
+echo "- HDMI-0 (1920x1080) a la izquierda"
+echo "- DP-0 (2560x1440) como principal a la derecha"
+EOF
+        
+        # Hacer el archivo ejecutable
+        chmod +x "$LAYOUT_FILE"
+        echo "✅ Configuración multimonitor creada en $LAYOUT_FILE"
+    ;;
+    * )
+        echo "Configuración de monitor único"
+    ;;
+esac
+
+# Agregar configuraciones al archivo de i3
+echo "Añadiendo configuraciones de wallpaper al archivo $config_file..."
+
+# Verificar si ya existe la configuración de wallpaper
+if ! grep -q "setwallpaper" "$config_file"; then
+    echo "" >> "$config_file"
+    
+    # Agregar configuración de multimonitor si fue seleccionada
+    if [ "$MULTIMONITOR" = true ]; then
+        echo "# Configuración de monitor doble" >> "$config_file"
+        echo "exec --no-startup-id sleep 2 && ~/.screenlayout/my-layout.sh" >> "$config_file"
+        echo "" >> "$config_file"
+    fi
+    
+    # Agregar configuración de wallpaper
+    echo "# Configuración de wallpaper" >> "$config_file"
+    echo "exec --no-startup-id setwallpaper $WALLPAPER_PATH --mode span" >> "$config_file"
+    
+    echo "✅ Configuración de wallpaper añadida correctamente"
+else
+    echo "ℹ️  La configuración de wallpaper ya existe en $config_file"
+fi
+
+# ========================
+# PARTE 7: Reinicio del sistema
 # ========================
 
 echo -e "\n¿Deseas reiniciar el sistema para aplicar los cambios?"

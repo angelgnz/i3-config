@@ -1,7 +1,9 @@
 liquidctl
+wallutils
 nextcloud-client
 google-chrome
 zen-browser-bin
+creality-print-appimage
 visual-studio-code-bin
 github-desktop-bin
 gittyup
@@ -17,6 +19,7 @@ pkg-config
 libxml2
 zlib
 sqlite
+npm
 composer
 php
 php-bz2
