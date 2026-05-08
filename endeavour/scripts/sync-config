@@ -1,0 +1,447 @@
+#!/bin/bash
+
+# Sincroniza configuracion de i3 para EndeavourOS.
+# Implementa puntos 2-10 adaptados con flags no interactivos.
+
+set -euo pipefail
+
+show_help() {
+    cat <<'EOF'
+Uso:
+    sync-config [opciones]
+
+Descripcion:
+    Sincroniza config y keybindings desde el repo hacia ~/.config/i3,
+    instala programas y aplica ajustes opcionales para EndeavourOS i3.
+
+Opciones:
+    --skip-install               Omitir instalacion de programas.
+    --sync-scripts               Sincronizar todos los scripts de endeavour/scripts.
+    --enable-natural-scroll      Aplicar natural scrolling via xinput.
+    --apply-picom-corner-radius  Ajustar corner-radius=12 en ~/.config/picom.conf si existe.
+    --add-i3-layouts             Agregar bloque i3-layouts al config si no existe.
+    --add-nzxt-autostart         Agregar autostart de i3_nzxt al config si no existe.
+    --copy-wallpaper             Copiar wallpaper al directorio ~/Images/wallpapers.
+    --add-wallpaper-exec         Agregar exec de feh al config si no existe.
+    --create-layout-template     Crear ~/.screenlayout/my-layout.sh si no existe.
+    --add-monitor-exec           Agregar exec de ~/.screenlayout/my-layout.sh al config.
+    --reload-i3                  Ejecutar i3-msg reload al finalizar.
+    -h, --help                   Mostrar esta ayuda.
+
+Notas:
+    - Punto 3 (i3_border_size en config.d) se omite por no aplicar a EndeavourOS.
+    - Este script no reinicia el sistema.
+EOF
+}
+
+SKIP_INSTALL=false
+SYNC_SCRIPTS=false
+ENABLE_NATURAL_SCROLL=false
+APPLY_PICOM_CORNER_RADIUS=false
+ADD_I3_LAYOUTS=false
+ADD_NZXT_AUTOSTART=false
+COPY_WALLPAPER=false
+ADD_WALLPAPER_EXEC=false
+CREATE_LAYOUT_TEMPLATE=false
+ADD_MONITOR_EXEC=false
+RELOAD_I3=false
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        --skip-install)
+            SKIP_INSTALL=true
+            ;;
+        --sync-scripts)
+            SYNC_SCRIPTS=true
+            ;;
+        --enable-natural-scroll)
+            ENABLE_NATURAL_SCROLL=true
+            ;;
+        --apply-picom-corner-radius)
+            APPLY_PICOM_CORNER_RADIUS=true
+            ;;
+        --add-i3-layouts)
+            ADD_I3_LAYOUTS=true
+            ;;
+        --add-nzxt-autostart)
+            ADD_NZXT_AUTOSTART=true
+            ;;
+        --copy-wallpaper)
+            COPY_WALLPAPER=true
+            ;;
+        --add-wallpaper-exec)
+            ADD_WALLPAPER_EXEC=true
+            ;;
+        --create-layout-template)
+            CREATE_LAYOUT_TEMPLATE=true
+            ;;
+        --add-monitor-exec)
+            ADD_MONITOR_EXEC=true
+            ;;
+        --reload-i3)
+            RELOAD_I3=true
+            ;;
+        *)
+            echo "Error: argumento no soportado: $1" >&2
+            echo "Usa --help para ver el uso." >&2
+            exit 1
+            ;;
+    esac
+    shift
+done
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+SRC_CONFIG="$REPO_ROOT/endeavour/config"
+SRC_KEYBINDINGS="$REPO_ROOT/endeavour/keybindings"
+SRC_NZXT="$REPO_ROOT/i3_nzxt"
+SRC_OVERGRIVE="$REPO_ROOT/i3_overgrive"
+SRC_ENDEAVOUR_SCRIPT_DIR="$REPO_ROOT/endeavour/scripts"
+SRC_WALLPAPER="$REPO_ROOT/edger_lucy_neon-16-9.jpg"
+PKG_LIST_FILE="$REPO_ROOT/programas"
+
+DEST_DIR="$HOME/.config/i3"
+DEST_CONFIG="$DEST_DIR/config"
+DEST_KEYBINDINGS="$DEST_DIR/keybindings"
+DEST_SCRIPT_DIR="$DEST_DIR/scripts"
+DEST_NZXT="$DEST_SCRIPT_DIR/i3_nzxt"
+DEST_OVERGRIVE="$DEST_SCRIPT_DIR/i3_overgrive"
+DEST_PICOM_CONF="$HOME/.config/picom.conf"
+DEST_WALLPAPER_DIR="$HOME/Images/wallpapers"
+DEST_WALLPAPER="$DEST_WALLPAPER_DIR/edger_lucy_neon-16-9.jpg"
+DEST_SCREENLAYOUT_DIR="$HOME/.screenlayout"
+DEST_LAYOUT_FILE="$DEST_SCREENLAYOUT_DIR/my-layout.sh"
+TOUCHPAD_DEVICE="MSFT0001:00 06CB:CE44 Touchpad"
+
+timestamp="$(date +%Y%m%d-%H%M%S)"
+
+I3_LAYOUTS_BLOCK=$(cat <<'EOF'
+# Configuracion de i3-layouts
+exec --no-startup-id xborders --border-width 2 --border-radius 12 --smart-hide-border
+exec --no-startup-id i3-layouts
+
+set $i3l spiral to workspace 1
+set $i3l spiral to workspace 2
+set $i3l spiral to workspace 3
+set $i3l spiral to workspace 4
+set $i3l spiral to workspace 5
+set $i3l spiral to workspace 6
+set $i3l spiral to workspace 7
+set $i3l spiral to workspace 8
+set $i3l spiral to workspace 9
+set $i3l spiral to workspace 0
+EOF
+)
+
+require_file() {
+    local file="$1"
+    if [[ ! -f "$file" ]]; then
+        echo "Error: no existe el archivo fuente: $file" >&2
+        exit 1
+    fi
+}
+
+backup_if_exists() {
+    local target="$1"
+    if [[ -f "$target" ]]; then
+        local backup="${target}.bak.${timestamp}"
+        cp -a "$target" "$backup"
+        echo "Backup creado: $backup"
+    fi
+}
+
+copy_and_verify() {
+    local src="$1"
+    local dst="$2"
+    local name="$3"
+
+    if [[ -f "$dst" ]] && cmp -s "$src" "$dst"; then
+        echo "OK: $name ya estaba sincronizado en $dst"
+        return
+    fi
+
+    backup_if_exists "$dst"
+    cp "$src" "$dst"
+
+    if cmp -s "$src" "$dst"; then
+        echo "OK: $name sincronizado en $dst"
+    else
+        echo "Error: verificacion fallida para $name" >&2
+        exit 1
+    fi
+}
+
+copy_script_if_changed() {
+    local src="$1"
+    local dst="$2"
+    local name="$3"
+
+    if [[ -f "$dst" ]] && cmp -s "$src" "$dst"; then
+        echo "OK: $name sin cambios en $dst"
+        return
+    fi
+
+    backup_if_exists "$dst"
+    cp "$src" "$dst"
+    chmod +x "$dst"
+
+    if cmp -s "$src" "$dst"; then
+        echo "OK: $name sincronizado en $dst"
+    else
+        echo "Error: verificacion fallida para $name" >&2
+        exit 1
+    fi
+}
+
+append_block_once() {
+    local file="$1"
+    local marker="$2"
+    local block="$3"
+    local name="$4"
+
+    if grep -Fq "$marker" "$file"; then
+        echo "OK: $name ya existe en $file"
+        return
+    fi
+
+    backup_if_exists "$file"
+    printf "\n%s\n" "$block" >> "$file"
+    echo "OK: $name agregado en $file"
+}
+
+append_line_once() {
+    local file="$1"
+    local line="$2"
+    local name="$3"
+
+    if grep -Fxq "$line" "$file"; then
+        echo "OK: $name ya existe en $file"
+        return
+    fi
+
+    backup_if_exists "$file"
+    printf "%s\n" "$line" >> "$file"
+    echo "OK: $name agregado en $file"
+}
+
+install_packages() {
+    local list_file="$1"
+    local -a packages=()
+
+    if [[ ! -f "$list_file" ]]; then
+        echo "Error: no existe la lista de programas: $list_file" >&2
+        exit 1
+    fi
+
+    while IFS= read -r line; do
+        line="${line%%#*}"
+        line="$(echo "$line" | xargs)"
+        [[ -z "$line" ]] && continue
+        packages+=("$line")
+    done < "$list_file"
+
+    if [[ ${#packages[@]} -eq 0 ]]; then
+        echo "No hay programas para instalar en $list_file"
+        return
+    fi
+
+    if command -v yay >/dev/null 2>&1; then
+        echo "Instalando programas con yay..."
+        yay -S --needed "${packages[@]}"
+    elif command -v pacman >/dev/null 2>&1; then
+        echo "Instalando programas con pacman..."
+        sudo pacman -S --needed "${packages[@]}"
+    else
+        echo "Error: no se encontro ni yay ni pacman para instalar programas." >&2
+        exit 1
+    fi
+}
+
+apply_picom_corner_radius() {
+    if [[ ! -f "$DEST_PICOM_CONF" ]]; then
+        echo "Aviso: no existe $DEST_PICOM_CONF. Se omite punto 2."
+        return
+    fi
+
+    if grep -Eq 'corner-radius[[:space:]]*=[[:space:]]*12;' "$DEST_PICOM_CONF"; then
+        echo "OK: corner-radius ya esta en 12 en $DEST_PICOM_CONF"
+        return
+    fi
+
+    backup_if_exists "$DEST_PICOM_CONF"
+
+    if grep -Eq 'corner-radius[[:space:]]*=[[:space:]]*[0-9]+;' "$DEST_PICOM_CONF"; then
+        sed -E -i '0,/corner-radius[[:space:]]*=[[:space:]]*[0-9]+;/{s//corner-radius = 12;/}' "$DEST_PICOM_CONF"
+        echo "OK: corner-radius ajustado a 12 en $DEST_PICOM_CONF"
+    else
+        printf "\ncorner-radius = 12;\n" >> "$DEST_PICOM_CONF"
+        echo "OK: corner-radius agregado en $DEST_PICOM_CONF"
+    fi
+}
+
+enable_natural_scroll() {
+    if ! command -v xinput >/dev/null 2>&1; then
+        echo "Aviso: xinput no esta disponible. Se omite natural scrolling."
+        return
+    fi
+
+    if ! xinput list --name-only | grep -Fxq "$TOUCHPAD_DEVICE"; then
+        echo "Aviso: no se encontro el touchpad '$TOUCHPAD_DEVICE'."
+        return
+    fi
+
+    if xinput set-prop "$TOUCHPAD_DEVICE" "libinput Natural Scrolling Enabled" 1; then
+        echo "OK: natural scrolling aplicado para '$TOUCHPAD_DEVICE'"
+    else
+        echo "Aviso: no se pudo aplicar natural scrolling."
+    fi
+}
+
+sync_all_endeavour_scripts() {
+    if [[ ! -d "$SRC_ENDEAVOUR_SCRIPT_DIR" ]]; then
+        echo "Aviso: no existe el directorio $SRC_ENDEAVOUR_SCRIPT_DIR"
+        return
+    fi
+
+    local src
+    local dst
+    local base
+
+    for src in "$SRC_ENDEAVOUR_SCRIPT_DIR"/*; do
+        [[ -f "$src" ]] || continue
+        base="$(basename "$src")"
+        dst="$DEST_SCRIPT_DIR/$base"
+        copy_script_if_changed "$src" "$dst" "$base"
+    done
+}
+
+copy_wallpaper() {
+    if [[ ! -f "$SRC_WALLPAPER" ]]; then
+        echo "Aviso: no existe el wallpaper fuente: $SRC_WALLPAPER"
+        return
+    fi
+
+    mkdir -p "$DEST_WALLPAPER_DIR"
+
+    if [[ -f "$DEST_WALLPAPER" ]] && cmp -s "$SRC_WALLPAPER" "$DEST_WALLPAPER"; then
+        echo "OK: wallpaper sin cambios en $DEST_WALLPAPER"
+        return
+    fi
+
+    backup_if_exists "$DEST_WALLPAPER"
+    cp "$SRC_WALLPAPER" "$DEST_WALLPAPER"
+    echo "OK: wallpaper copiado en $DEST_WALLPAPER"
+}
+
+create_layout_template() {
+    mkdir -p "$DEST_SCREENLAYOUT_DIR"
+
+    if [[ -f "$DEST_LAYOUT_FILE" ]]; then
+        echo "OK: layout template ya existe en $DEST_LAYOUT_FILE"
+        return
+    fi
+
+    cat > "$DEST_LAYOUT_FILE" <<'EOF'
+#!/bin/bash
+# Plantilla de layout multimonitor para EndeavourOS i3.
+# Ajusta salidas, resoluciones y posiciones segun tu hardware.
+xrandr --output HDMI-0 --mode 1920x1080 --pos 0x0 --rotate normal \
+       --output DP-0 --primary --mode 2560x1440 --pos 1920x0 --rotate normal
+EOF
+
+    chmod +x "$DEST_LAYOUT_FILE"
+    echo "OK: layout template creado en $DEST_LAYOUT_FILE"
+}
+
+reload_i3_if_possible() {
+    if ! command -v i3-msg >/dev/null 2>&1; then
+        echo "Aviso: i3-msg no esta disponible. No se pudo recargar i3."
+        return
+    fi
+
+    if i3-msg reload >/dev/null 2>&1; then
+        echo "OK: i3 recargado"
+    else
+        echo "Aviso: i3-msg no pudo recargar la sesion actual."
+    fi
+}
+
+require_file "$SRC_CONFIG"
+require_file "$SRC_KEYBINDINGS"
+require_file "$SRC_NZXT"
+
+if [[ "$SKIP_INSTALL" == false ]]; then
+    install_packages "$PKG_LIST_FILE"
+else
+    echo "Instalacion de programas omitida (--skip-install)."
+fi
+
+mkdir -p "$DEST_DIR"
+mkdir -p "$DEST_SCRIPT_DIR"
+
+if [[ ! -w "$DEST_DIR" || ! -w "$DEST_SCRIPT_DIR" ]]; then
+    echo "Error: sin permisos de escritura en $DEST_DIR" >&2
+    exit 1
+fi
+
+copy_and_verify "$SRC_CONFIG" "$DEST_CONFIG" "config"
+copy_and_verify "$SRC_KEYBINDINGS" "$DEST_KEYBINDINGS" "keybindings"
+copy_script_if_changed "$SRC_NZXT" "$DEST_NZXT" "i3_nzxt"
+
+if [[ -f "$SRC_OVERGRIVE" ]]; then
+    copy_script_if_changed "$SRC_OVERGRIVE" "$DEST_OVERGRIVE" "i3_overgrive"
+else
+    echo "Aviso: no existe $SRC_OVERGRIVE (se omite copia)."
+fi
+
+if [[ "$SYNC_SCRIPTS" == true ]]; then
+    sync_all_endeavour_scripts
+fi
+
+if [[ "$ENABLE_NATURAL_SCROLL" == true ]]; then
+    enable_natural_scroll
+fi
+
+if [[ "$APPLY_PICOM_CORNER_RADIUS" == true ]]; then
+    apply_picom_corner_radius
+fi
+
+if [[ "$ADD_I3_LAYOUTS" == true ]]; then
+    append_block_once "$DEST_CONFIG" "exec --no-startup-id i3-layouts" "$I3_LAYOUTS_BLOCK" "bloque i3-layouts"
+fi
+
+if [[ "$ADD_NZXT_AUTOSTART" == true ]]; then
+    append_line_once "$DEST_CONFIG" "exec --no-startup-id sleep 2 && ~/.config/i3/scripts/i3_nzxt" "autostart i3_nzxt"
+fi
+
+if [[ "$COPY_WALLPAPER" == true ]]; then
+    copy_wallpaper
+fi
+
+if [[ "$ADD_WALLPAPER_EXEC" == true ]]; then
+    append_line_once "$DEST_CONFIG" "exec --no-startup-id feh --bg-fill ~/Images/wallpapers/edger_lucy_neon-16-9.jpg" "exec wallpaper"
+fi
+
+if [[ "$CREATE_LAYOUT_TEMPLATE" == true ]]; then
+    create_layout_template
+fi
+
+if [[ "$ADD_MONITOR_EXEC" == true ]]; then
+    if [[ -f "$DEST_LAYOUT_FILE" ]]; then
+        append_line_once "$DEST_CONFIG" "exec --no-startup-id sleep 2 && ~/.screenlayout/my-layout.sh" "exec layout monitor"
+    else
+        echo "Aviso: no existe $DEST_LAYOUT_FILE. Usa --create-layout-template primero."
+    fi
+fi
+
+if [[ "$RELOAD_I3" == true ]]; then
+    reload_i3_if_possible
+fi
+
+echo "Sincronizacion completada."
+echo "Nota: punto 3 (i3_border_size en config.d) se omite en EndeavourOS."
