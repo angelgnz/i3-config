@@ -8,7 +8,6 @@ visual-studio-code-bin
 github-desktop-bin
 gittyup
 xpipe
-i3-layouts
 xborder-git
 xppenlinux
 curl
@@ -30,3 +29,4 @@ php-pear
 downgrade
 picom
 i3-layouts
+gvfs-smb
